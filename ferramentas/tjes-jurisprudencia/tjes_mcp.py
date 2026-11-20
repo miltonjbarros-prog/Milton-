@@ -52,19 +52,17 @@ def _get(params, timeout=60):
 
 
 def buscar(q, por_pagina=30, pagina=1):
-    """Busca no core pje2g, tentando ordenar do mais recente; sem ordenação se a API recusar."""
-    base = {"core": CORE, "q": q, "page": pagina, "per_page": por_pagina}
-    for sort in ("dt_juntada desc", None):
-        p = dict(base)
-        if sort:
-            p["sort"] = sort
-        try:
-            return _get(p)
-        except urllib.error.HTTPError as e:
-            if sort and e.code in (400, 422, 500):
-                continue
-            raise
-    return {"docs": [], "total": 0}
+    """Busca no core pje2g, ordenada por relevância (padrão do Solr)."""
+    return _get({"core": CORE, "q": q, "page": pagina, "per_page": por_pagina})
+
+
+def _exigir_todas(consulta):
+    """'dano moral negativação' -> 'dano AND moral AND negativação' (todas as palavras).
+    Consultas que já usam aspas, operadores ou campo:valor são mantidas como estão."""
+    if re.search(r'["():]|\b(AND|OR|NOT)\b', consulta):
+        return consulta
+    palavras = [p for p in consulta.split() if len(p) > 2]
+    return " AND ".join(palavras) if len(palavras) > 1 else consulta
 
 
 def _txt(v):
@@ -101,14 +99,18 @@ def _cabecalho(d):
 # ---------------------------------------------------------------------------
 def pesquisar_acordaos_tjes(consulta, quantidade=8, desde=None):
     quantidade = max(1, min(int(quantidade or 8), 20))
-    r = buscar(consulta, por_pagina=min(quantidade * 3, 60))
+    lote = min(max(quantidade * 4, 20), 60)
+    q = _exigir_todas(consulta)
+    r = buscar(q, por_pagina=lote)
+    if not r.get("docs") and q != consulta:
+        q, r = consulta, buscar(consulta, por_pagina=lote)
     docs = [d for d in r.get("docs", []) if _segundo_grau(d)]
     if desde:
         docs = [d for d in docs if _data(d) >= str(desde)[:10]]
-    docs.sort(key=_data, reverse=True)
-    docs = docs[:quantidade]
-    out = [f"TJES - acórdãos de 2º grau | consulta: {consulta!r} | "
-           f"{r.get('total', '?')} no índice | exibindo {len(docs)} (Turmas Recursais excluídas)", ""]
+    docs = docs[:quantidade]  # mantém a ordem de relevância do TJES
+    out = [f"TJES - acórdãos de 2º grau | consulta: {q!r} | "
+           f"{r.get('total', '?')} no índice | exibindo {len(docs)} por relevância "
+           f"(Turmas Recursais excluídas)", ""]
     for i, d in enumerate(docs, 1):
         out += [f"[{i}] " + _cabecalho(d), "EMENTA: " + (_ementa(d)[:3000] or "(sem ementa)"), ""]
     if not docs:
@@ -140,9 +142,11 @@ FERRAMENTAS = [
     {
         "name": "pesquisar_acordaos_tjes",
         "description": ("Pesquisa ACÓRDÃOS DE 2º GRAU do TJES (Câmaras e Pleno), direto na base "
-                        "oficial do Tribunal, do mais recente ao mais antigo, excluindo Turmas "
-                        "Recursais. Retorna processo, relator, órgão, data, link oficial e ementa. "
-                        "Aceita palavras-chave ou sintaxe Solr (ex.: \"dano moral\" AND negativação)."),
+                        "oficial do Tribunal, por relevância, excluindo Turmas Recursais. Use SEMPRE "
+                        "esta ferramenta (e não a EmentAI) para jurisprudência do TJES. Retorna processo, "
+                        "relator, órgão, data, link oficial e ementa. Palavras-chave exigem todas as "
+                        "palavras; aceita sintaxe Solr (ex.: \"dano moral\" AND negativação). Use 'desde' "
+                        "(AAAA-MM-DD) para limitar a julgados recentes."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -240,6 +244,7 @@ def instalar():
         pastas = [os.path.expanduser("~/.config/Claude")]
     existentes = [p for p in pastas if os.path.isdir(p)] or pastas[:1]
 
+    gravados = []
     for pasta in existentes:
         os.makedirs(pasta, exist_ok=True)
         cfg = os.path.join(pasta, "claude_desktop_config.json")
@@ -255,14 +260,19 @@ def instalar():
         dados.setdefault("mcpServers", {})["tjes"] = {"command": sys.executable, "args": [destino]}
         with open(cfg, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
+        gravados.append(cfg)
         print(f"2) Claude Desktop configurado em: {cfg}")
 
     print("3) Testando a conexão com o TJES...\n")
     try:
         print(pesquisar_acordaos_tjes("dano moral negativação indevida", 2))
-        print("\nTUDO CERTO! Feche o Claude Desktop por completo e abra de novo.")
+        print("\nCONEXÃO COM O TJES: OK")
     except Exception as e:  # noqa: BLE001
-        print(f"FALHA NO TESTE: {e}\nCopie esta mensagem e envie ao Claude.")
+        print(f"FALHA NO TESTE DO TJES: {e}")
+    print("\nConfiguração gravada em:")
+    for c in gravados:
+        print("   " + c)
+    print("\nAgora feche o Claude Desktop por completo (ícone perto do relógio > Sair) e abra de novo.")
 
 
 if __name__ == "__main__":
