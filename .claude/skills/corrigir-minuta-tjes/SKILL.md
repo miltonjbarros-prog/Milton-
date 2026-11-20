@@ -10,7 +10,12 @@ Justiça do Espírito Santo, usando **somente acórdãos de segundo grau** como 
 
 ## Fonte da jurisprudência
 
-1. **Fonte principal:** ferramentas da EmentAI (servidor MCP `EmentAI_jurisprud_ncia_e_legisla_o_brasileiras`).
+0. **Fonte preferencial (base oficial do TJES):** se as ferramentas `pesquisar_acordaos_tjes` e
+   `obter_acordao_tjes` estiverem disponíveis (servidor local `tjes`, ver
+   `ferramentas/tjes-jurisprudencia/LEIA-ME.md`), use-as primeiro: consultam direto o índice do
+   TJES, só acórdãos de 2º grau, já sem Turmas Recursais. Use a EmentAI apenas como complemento
+   (conferência de citações, STF/STJ) ou quando essas ferramentas não existirem na sessão.
+1. **Fonte alternativa:** ferramentas da EmentAI (servidor MCP `EmentAI_jurisprud_ncia_e_legisla_o_brasileiras`).
    Carregue-as com ToolSearch (`select:` + nomes abaixo) antes do primeiro uso:
    - `pesquisar_jurisprudencia` — sempre com `tribunal: "TJES"` e `tipo: "acordao"`.
    - `obter_decisao` — inteiro teor/ementa completa de um resultado (pelo `id`).
