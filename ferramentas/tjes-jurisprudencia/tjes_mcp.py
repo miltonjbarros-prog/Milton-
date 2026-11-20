@@ -278,5 +278,16 @@ if __name__ == "__main__":
         except Exception:  # noqa: BLE001
             pass
         print(pesquisar_acordaos_tjes(" ".join(sys.argv[2:]), 3))
+    elif sys.stdin.isatty():
+        # Aberto com dois cliques (não pelo Claude): instala e espera o usuário ler.
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            instalar()
+        except Exception as e:  # noqa: BLE001
+            print(f"ERRO NA INSTALAÇÃO: {e}\nCopie esta mensagem e envie ao Claude.")
+        input("\nPressione Enter para fechar...")
     else:
         main()
